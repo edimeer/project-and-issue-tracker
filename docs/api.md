@@ -1,0 +1,129 @@
+# Rails API contract
+
+This is what a Ruby on Rails backend needs to provide so the front end can switch from `localStorage`
+to a server. Each section maps to a method on the `Repository` interface in `src/data/repository.ts`.
+The data shapes match `src/domain/types.ts`.
+
+Conventions:
+
+- JSON over HTTPS, under `/api/v1`. Send `Content-Type: application/json`.
+- IDs are opaque strings. Timestamps are ISO 8601 in UTC. Due dates are plain `YYYY-MM-DD` strings with no time zone.
+- Authentication: a session cookie (recommended for a same-site front end) or a bearer token. Not needed for the local version.
+- Enum values are lowercase snake case: statuses `backlog | todo | in_progress | in_review | done`,
+  priorities `low | medium | high | urgent`.
+
+## Data shapes
+
+```jsonc
+// User
+{ "id": "u_1", "name": "Maya Chen", "email": "maya@example.com", "color": "#1f4d3f" }
+
+// Label
+{ "id": "l_1", "name": "bug", "color": "#a63a55" }
+
+// Project
+{
+  "id": "p_1", "key": "WEB", "name": "Website relaunch", "description": "",
+  "color": "#1f4d3f", "archivedAt": null,
+  "createdAt": "2026-11-05T09:30:00Z", "updatedAt": "2026-11-05T09:30:00Z",
+  "issueCounter": 13
+}
+
+// Issue
+{
+  "id": "i_1", "projectId": "p_1", "number": 7,
+  "title": "Contact form fails", "description": "",
+  "status": "in_progress", "priority": "urgent",
+  "assigneeId": "u_2",            // or null
+  "labelIds": ["l_1"],
+  "dueDate": "2026-11-12",        // or null
+  "createdAt": "...", "updatedAt": "..."
+}
+
+// ActivityEvent
+{
+  "id": "e_1", "projectId": "p_1", "issueId": "i_1",   // issueId is null for project events
+  "actorId": "u_1",
+  "type": "issue.status_changed",
+  "data": { "issueRef": "WEB-7", "issueTitle": "Contact form fails", "from": "Todo", "to": "In Progress" },
+  "createdAt": "..."
+}
+```
+
+Event types: `project.created`, `project.updated`, `project.archived`, `project.restored`,
+`issue.created`, `issue.updated`, `issue.status_changed`, `issue.deleted`.
+The server should create events itself as part of each write (the local version does the same).
+The `data` payload is denormalised on purpose so the feed still reads well after renames and deletes.
+
+## Endpoints
+
+| Repository method | Request | Success response |
+| --- | --- | --- |
+| `load()` | `GET /api/v1/workspace` | `200` `{ currentUserId, users, labels, projects, issues, activity }` |
+| `createProject(input)` | `POST /api/v1/projects` body `{ name, description, color }` | `201` `{ project, events }` |
+| `updateProject(id, patch)` | `PATCH /api/v1/projects/:id` body any of `{ name, description, color }` | `200` `{ project, events }` |
+| `archiveProject(id)` | `POST /api/v1/projects/:id/archive` | `200` `{ project, events }` |
+| `restoreProject(id)` | `POST /api/v1/projects/:id/restore` | `200` `{ project, events }` |
+| `deleteProject(id)` | `DELETE /api/v1/projects/:id` | `204` (also removes its issues and activity) |
+| `createIssue(projectId, input)` | `POST /api/v1/projects/:project_id/issues` body issue fields | `201` `{ issue, events }` |
+| `updateIssue(id, patch)` | `PATCH /api/v1/issues/:id` body any issue fields | `200` `{ issue, events }` |
+| `moveIssue(id, status)` | `PATCH /api/v1/issues/:id` body `{ status }` | `200` `{ issue, events }` |
+| `deleteIssue(id)` | `DELETE /api/v1/issues/:id` | `200` `{ id, events }` |
+| `createLabel(input)` | `POST /api/v1/labels` body `{ name, color }` | `201` `{ label }` (returns the existing label if the name already exists, case-insensitive) |
+| `resetToSample()` | Local-only. Do not implement on the server (or gate it to development). | |
+
+Issue body fields: `title`, `description`, `status`, `priority`, `assigneeId`, `labelIds`, `dueDate`.
+
+`GET /api/v1/workspace` returns everything in one response, which is fine for small teams.
+For larger data sets, split it into `GET /projects`, `GET /projects/:id/issues?...` (with the filter parameters below),
+`GET /projects/:id/activity?limit=` and `GET /users`, `GET /labels`, and change `load()` and the store accordingly.
+
+### Optional server-side filtering (for large projects)
+
+`GET /api/v1/projects/:id/issues` with query parameters: `q`, `status[]`, `priority[]`, `assignee[]` (user id or `unassigned`),
+`label[]` (any of), `due` (`overdue | today | week | none`), `sort` (`updated | created | priority | status | due | title | number`),
+`dir` (`asc | desc`), `page`, `per_page`. The front end currently filters in memory.
+
+## Rules the server must enforce
+
+The client validates too, but the server is the source of truth.
+
+- Project `name`: required after trimming, at most 60 characters. `description`: at most 280. `color`: `#rrggbb`.
+- Project `key`: generated on create from the name (2 to 4 uppercase letters or digits), unique, never changed on rename.
+- Issue `title`: required after trimming, at most 140 characters. `description`: at most 5000.
+- Issue `status` and `priority` must be one of the enum values. `dueDate` must be a real calendar date or null.
+- `assigneeId` and `labelIds` must reference existing records. Unknown label ids may be dropped (the local version drops them).
+- Issue `number`: per project, assigned from `issueCounter` inside a transaction, never reused after a delete.
+- Archived projects are read-only: creating, updating, moving or deleting their issues returns `409`.
+  Restoring and deleting the project itself are still allowed.
+- An update that changes nothing returns `200` with an empty `events` array and does not touch `updatedAt`.
+
+Suggested Rails models: `User`, `Label`, `Project` (`issue_counter`, `archived_at`), `Issue` (indexes on `project_id, number` unique,
+`project_id, status`, `assignee_id`, `due_date`), `IssueLabel` join table, `ActivityEvent` (`data` as `jsonb`).
+Use `enum :status` and `enum :priority` on `Issue`.
+
+## Errors
+
+Use standard status codes. Return this body for every error so the UI can show one clear message:
+
+```json
+{ "error": { "code": "validation_failed", "message": "Give the issue a title.", "fields": { "title": "Give the issue a title." } } }
+```
+
+| Status | `code` | When |
+| --- | --- | --- |
+| 401 | `unauthenticated` | No valid session |
+| 403 | `forbidden` | Not allowed on this workspace |
+| 404 | `not_found` | Record does not exist |
+| 409 | `project_archived` | Write to an archived project |
+| 422 | `validation_failed` | Input rules above were broken |
+
+In `ApiRepository`, map `422` to the existing `ValidationError` (with `fields`) and every other failure to `RepositoryError(message)`.
+The store already turns both into on-screen messages.
+
+## Multi-user notes
+
+- Add `workspace_id` (or `team_id`) to projects, labels and users, plus memberships and roles.
+- Replace the fixed demo user with the signed-in user. `currentUserId` already comes from `load()`.
+- For live updates, push changes over Action Cable and implement the optional `Repository.subscribe` so the store reloads or merges.
+- Add optimistic concurrency (`updated_at` or a `lock_version` sent with updates, `409` on conflict) before two people edit the same issue.
