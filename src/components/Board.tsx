@@ -253,7 +253,13 @@ function Column({ status, issues, project, ctx, readOnly, onOpen, onDelete, onCr
   const [limit, setLimit] = useState(PAGE);
   const headingId = `col-${status}`;
   return (
-    <section ref={setNodeRef} className={`column${isOver && draggingId ? ' is-over' : ''}`} aria-labelledby={headingId}>
+    <section
+      ref={setNodeRef}
+      className={`column status-${status}${isOver && draggingId ? ' is-over' : ''}`}
+      style={{ ['--n' as string]: issues.length }}
+      aria-labelledby={headingId}
+    >
+      <span className="column-weight" aria-hidden="true" />
       <header className="column-header">
         <h2 id={headingId} className={`column-title status-${status}`}>
           <StatusIcon status={status} />

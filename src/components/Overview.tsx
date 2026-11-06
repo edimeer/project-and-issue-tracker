@@ -64,6 +64,14 @@ export function Overview({ project, issues, today, readOnly, onOpen, onCreate }:
         <h2 id="ov-status" className="panel-title">
           Issues by status
         </h2>
+        <div className="status-panel">
+        <div className="gauge" role="img" aria-label={`${Math.round((done / total) * 100)}% of issues done`}>
+          <span className="gauge-thread" />
+          <span className="gauge-fill" style={{ height: `${(done / total) * 100}%` }} />
+          <span className="gauge-bob" style={{ bottom: `${(done / total) * 100}%` }} />
+          <span className="gauge-value">{Math.round((done / total) * 100)}%</span>
+        </div>
+        <div>
         <div className="progress-line">
           <div className="progress-bar" role="img" aria-label={`${done} of ${total} issues done`}>
             {STATUSES.map((s) => (
@@ -84,6 +92,8 @@ export function Overview({ project, issues, today, readOnly, onOpen, onCreate }:
             </li>
           ))}
         </ul>
+        </div>
+        </div>
       </section>
 
       <section className="panel" aria-labelledby="ov-attn">
