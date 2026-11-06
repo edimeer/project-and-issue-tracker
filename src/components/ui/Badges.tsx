@@ -1,36 +1,36 @@
-import { PRIORITY_META, STATUS_META } from '../../domain/constants';
+import { PRIORITY_META } from '../../domain/constants';
 import { describeDue, formatDate } from '../../domain/dates';
-import type { Label, Priority, Status, User } from '../../domain/types';
+import type { Column, ColumnKind, Label, Priority, User } from '../../domain/types';
 import { Icon } from './Icon';
 
 /** Each status has its own shape as well as its own colour, so it never relies on colour alone. */
-export function StatusIcon({ status, size = 16 }: { status: Status; size?: number }) {
+export function StatusIcon({ kind, size = 16 }: { kind: ColumnKind; size?: number }) {
   return (
     <svg
-      className={`status-icon status-${status}`}
+      className={`status-icon status-${kind}`}
       width={size}
       height={size}
       viewBox="0 0 16 16"
       aria-hidden="true"
       focusable="false"
     >
-      {status === 'backlog' && (
+      {kind === 'backlog' && (
         <circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" strokeWidth="1.6" strokeDasharray="2.6 2.6" />
       )}
-      {status === 'todo' && <circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" strokeWidth="1.8" />}
-      {status === 'in_progress' && (
+      {kind === 'todo' && <circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" strokeWidth="1.8" />}
+      {kind === 'in_progress' && (
         <>
           <circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" strokeWidth="1.8" />
           <path d="M8 4.2a3.8 3.8 0 0 1 0 7.6Z" fill="currentColor" />
         </>
       )}
-      {status === 'in_review' && (
+      {kind === 'in_review' && (
         <>
           <circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" strokeWidth="1.8" />
           <path d="M8 8V4.2A3.8 3.8 0 1 1 4.2 8Z" fill="currentColor" />
         </>
       )}
-      {status === 'done' && (
+      {kind === 'done' && (
         <>
           <circle cx="8" cy="8" r="7" fill="currentColor" />
           <path d="m5 8.2 2.2 2.2L11 6.4" fill="none" stroke="var(--surface)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
@@ -74,11 +74,12 @@ export function PriorityIcon({ priority, size = 16 }: { priority: Priority; size
   );
 }
 
-export function StatusBadge({ status }: { status: Status }) {
+export function StatusBadge({ column }: { column: Column | undefined }) {
+  const kind = column?.kind ?? 'backlog';
   return (
-    <span className={`badge status-${status}`}>
-      <StatusIcon status={status} size={14} />
-      {STATUS_META[status].label}
+    <span className={`badge status-${kind}`}>
+      <StatusIcon kind={kind} size={14} />
+      <span className="badge-text">{column?.name ?? 'Unknown'}</span>
     </span>
   );
 }
@@ -120,8 +121,7 @@ export function Avatar({ user, size = 24 }: { user: User; size?: number }) {
   );
 }
 
-export function DueChip({ dueDate, status, today, verbose = false }: { dueDate: string; status: Status; today: string; verbose?: boolean }) {
-  const done = status === 'done';
+export function DueChip({ dueDate, done, today, verbose = false }: { dueDate: string; done: boolean; today: string; verbose?: boolean }) {
   const info = describeDue(dueDate, today);
   const tone = done ? 'normal' : info.tone;
   return (

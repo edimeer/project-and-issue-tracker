@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { PRIORITY_META, STATUS_META } from '../domain/constants';
+import { PRIORITY_META } from '../domain/constants';
 import { GROUP_LABELS, SORT_LABELS, UNASSIGNED, countActiveFilters, emptyFilters } from '../domain/filters';
 import type { DueFilter, GroupBy, IssueFilters, SortField, SortState } from '../domain/filters';
-import { PRIORITIES, STATUSES } from '../domain/types';
+import { PRIORITIES } from '../domain/types';
+import type { Column } from '../domain/types';
 import { useStore } from '../state/store';
 import { Avatar, PriorityIcon, StatusIcon } from './ui/Badges';
 import { Dialog } from './ui/Dialog';
@@ -23,6 +24,7 @@ function toggle<T>(list: T[], value: T): T[] {
 interface Props {
   filters: IssueFilters;
   onChange: (next: IssueFilters) => void;
+  columns: Column[];
   shown: number;
   total: number;
   /** Present only in the list view. */
@@ -35,13 +37,13 @@ interface Props {
   };
 }
 
-export function FilterBar({ filters, onChange, shown, total, listControls }: Props) {
+export function FilterBar({ filters, onChange, columns, shown, total, listControls }: Props) {
   const { data, usersById, labelsById } = useStore();
   const [open, setOpen] = useState(false);
   const active = countActiveFilters(filters) - (filters.query.trim() ? 1 : 0);
 
   const chips: { key: string; text: string; remove: () => void }[] = [
-    ...filters.statuses.map((s) => ({ key: `s-${s}`, text: `Status: ${STATUS_META[s].label}`, remove: () => onChange({ ...filters, statuses: toggle(filters.statuses, s) }) })),
+    ...filters.statuses.map((s) => ({ key: `s-${s}`, text: `Column: ${columns.find((c) => c.id === s)?.name ?? 'Unknown'}`, remove: () => onChange({ ...filters, statuses: toggle(filters.statuses, s) }) })),
     ...filters.priorities.map((p) => ({ key: `p-${p}`, text: `Priority: ${PRIORITY_META[p].label}`, remove: () => onChange({ ...filters, priorities: toggle(filters.priorities, p) }) })),
     ...filters.assignees.map((a) => ({
       key: `a-${a}`,
@@ -147,12 +149,12 @@ export function FilterBar({ filters, onChange, shown, total, listControls }: Pro
         >
           <div className="form-stack">
             <fieldset className="fieldset">
-              <legend className="field-label">Status</legend>
+              <legend className="field-label">Column</legend>
               <div className="check-list">
-                {STATUSES.map((s) => (
-                  <label key={s} className="check">
-                    <input type="checkbox" checked={filters.statuses.includes(s)} onChange={() => onChange({ ...filters, statuses: toggle(filters.statuses, s) })} />
-                    <StatusIcon status={s} /> {STATUS_META[s].label}
+                {columns.map((c) => (
+                  <label key={c.id} className="check">
+                    <input type="checkbox" checked={filters.statuses.includes(c.id)} onChange={() => onChange({ ...filters, statuses: toggle(filters.statuses, c.id) })} />
+                    <StatusIcon kind={c.kind} /> {c.name}
                   </label>
                 ))}
               </div>

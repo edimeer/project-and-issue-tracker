@@ -1,9 +1,10 @@
 import { useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
-import { LABEL_COLORS, LIMITS, PRIORITY_META, STATUS_META } from '../domain/constants';
+import { LABEL_COLORS, LIMITS, PRIORITY_META } from '../domain/constants';
+import { firstColumnId } from '../domain/columns';
 import { formatDateTime } from '../domain/dates';
 import { issueRef } from '../domain/filters';
-import { PRIORITIES, STATUSES } from '../domain/types';
+import { PRIORITIES } from '../domain/types';
 import type { IssueInput, Priority, Project, Status } from '../domain/types';
 import { hasErrors, validateIssue } from '../domain/validation';
 import type { FieldErrors } from '../domain/validation';
@@ -31,7 +32,7 @@ export function IssueDialog({ project, issueId, initialStatus, onClose }: Props)
     () => ({
       title: issue?.title ?? '',
       description: issue?.description ?? '',
-      status: issue?.status ?? initialStatus ?? 'todo',
+      status: issue?.status ?? (initialStatus && project.columns.some((c) => c.id === initialStatus) ? initialStatus : firstColumnId(project.columns)),
       priority: issue?.priority ?? 'medium',
       assigneeId: issue ? issue.assigneeId : null,
       labelIds: issue?.labelIds ?? [],
@@ -163,12 +164,12 @@ export function IssueDialog({ project, issueId, initialStatus, onClose }: Props)
           </Field>
 
           <div className="form-grid">
-            <Field label="Status" error={errors.status}>
+            <Field label="Column" error={errors.status}>
               {(p) => (
-                <select {...p} className="input" value={values.status} disabled={readOnly} onChange={(e) => set('status', e.target.value as Status)}>
-                  {STATUSES.map((s) => (
-                    <option key={s} value={s}>
-                      {STATUS_META[s].label}
+                <select {...p} className="input" value={values.status} disabled={readOnly} onChange={(e) => set('status', e.target.value)}>
+                  {project.columns.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
                     </option>
                   ))}
                 </select>

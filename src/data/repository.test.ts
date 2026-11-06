@@ -124,4 +124,49 @@ describe('LocalStorageRepository', () => {
     const snap = await repo.resetToSample();
     expect(snap.projects.some((p) => p.id === 'p_web')).toBe(true);
   });
+
+  it('gives new projects the five default columns', async () => {
+    const r = await repo.createProject({ name: 'Brand new', description: '', color: '#1f4d3f' });
+    expect(r.value.columns.map((c) => c.name)).toEqual(['Backlog', 'Todo', 'In Progress', 'In Review', 'Done']);
+  });
+
+  it('upgrades older saved projects that have no columns', async () => {
+    const snap = await repo.load();
+    const old = JSON.parse(JSON.stringify(snap));
+    for (const p of old.projects) delete p.columns;
+    storage.setItem(KEY, JSON.stringify(old));
+    const again = await new LocalStorageRepository({ storage, key: KEY }).load();
+    expect(again.projects[0].columns).toHaveLength(5);
+  });
+
+  it('adds, renames and reorders columns, and accepts issues in a new column', async () => {
+    const snap = await repo.load();
+    const cols = snap.projects.find((p) => p.id === 'p_web')!.columns.map((c) => ({ ...c }));
+    cols.splice(3, 0, { id: 'c_qa', name: 'QA', kind: 'in_review' });
+    cols[0].name = 'Ideas';
+    await repo.updateColumns('p_web', cols, {});
+    const moved = await repo.moveIssue('i_web_2', 'c_qa');
+    expect(moved.value.status).toBe('c_qa');
+    expect(moved.events[0].data.to).toBe('QA');
+    const after = (await repo.load()).projects.find((p) => p.id === 'p_web')!.columns;
+    expect(after.map((c) => c.name)).toEqual(['Ideas', 'Todo', 'In Progress', 'QA', 'In Review', 'Done']);
+  });
+
+  it('requires a destination for issues when a column is removed, then moves them', async () => {
+    const snap = await repo.load();
+    const cols = snap.projects.find((p) => p.id === 'p_web')!.columns.filter((c) => c.id !== 'in_progress');
+    const inProgress = snap.issues.filter((i) => i.projectId === 'p_web' && i.status === 'in_progress');
+    expect(inProgress.length).toBeGreaterThan(0);
+    await expect(repo.updateColumns('p_web', cols, {})).rejects.toThrow(/Choose where/);
+    await repo.updateColumns('p_web', cols, { in_progress: 'todo' });
+    const after = await repo.load();
+    for (const i of inProgress) expect(after.issues.find((x) => x.id === i.id)!.status).toBe('todo');
+  });
+
+  it('rejects an issue status that is not one of the project columns, and invalid column lists', async () => {
+    await expect(repo.createIssue('p_web', { ...issueInput, status: 'nope' })).rejects.toBeInstanceOf(ValidationError);
+    const cols = (await repo.load()).projects[0].columns;
+    await expect(repo.updateColumns('p_web', [], {})).rejects.toThrow(/at least one/);
+    await expect(repo.updateColumns('p_web', [cols[0], { ...cols[1], name: cols[0].name }], {})).rejects.toThrow(/Two columns/);
+  });
 });

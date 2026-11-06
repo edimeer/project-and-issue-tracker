@@ -43,7 +43,7 @@ export function IssueCard({ issue, project, ctx, readOnly, onOpen, onDelete, dra
           <Menu
             label={`Actions for ${ref}`}
             className="icon-btn icon-btn-sm"
-            entries={buildIssueMenu({ issue, readOnly, actions, onOpen, onDelete })}
+            entries={buildIssueMenu({ issue, columns: project.columns, readOnly, actions, onOpen, onDelete })}
           />
         )}
       </div>
@@ -61,7 +61,7 @@ export function IssueCard({ issue, project, ctx, readOnly, onOpen, onDelete, dra
         </div>
       )}
       <div className="card-foot">
-        {issue.dueDate ? <DueChip dueDate={issue.dueDate} status={issue.status} today={ctx.today} /> : <span />}
+        {issue.dueDate ? <DueChip dueDate={issue.dueDate} done={ctx.doneIds.has(issue.status)} today={ctx.today} /> : <span />}
         {assignee ? <Avatar user={assignee} size={24} /> : <span className="unassigned" title="Unassigned">Unassigned</span>}
       </div>
     </article>

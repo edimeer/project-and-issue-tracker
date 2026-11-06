@@ -1,10 +1,11 @@
 import { PROJECT_COLORS } from '../domain/constants';
-import { STATUS_META } from '../domain/constants';
+import { defaultColumns, firstColumnId, normalizeColumns, validateColumns } from '../domain/columns';
 import { issueRef } from '../domain/filters';
 import { ValidationError, hasErrors, validateIssue, validateLabel, validateProject } from '../domain/validation';
 import type {
   ActivityEvent,
   ActivityType,
+  Column,
   ID,
   Issue,
   IssueInput,
@@ -46,6 +47,27 @@ function isSnapshot(value: unknown): value is Snapshot {
 
 const MAX_ACTIVITY = 500;
 
+/** Fills in anything older saved data lacks, so it never reaches the UI half-formed. */
+function upgrade(snap: Snapshot): Snapshot {
+  for (const p of snap.projects) p.columns = normalizeColumns(p.columns);
+  const byProject = new Map(snap.projects.map((p) => [p.id, p]));
+  for (const i of snap.issues) {
+    const p = byProject.get(i.projectId);
+    if (p && !p.columns.some((c) => c.id === i.status)) i.status = firstColumnId(p.columns);
+  }
+  for (const u of snap.users) {
+    if (u.id === 'u_maya' && u.name === 'Maya Chen') {
+      u.name = 'Edi';
+      u.email = 'edi@example.com';
+    }
+  }
+  return snap;
+}
+
+function columnName(project: Project, id: string): string {
+  return project.columns.find((c) => c.id === id)?.name ?? 'a removed column';
+}
+
 function deriveKey(name: string, taken: Set<string>): string {
   const words = name.toUpperCase().replace(/[^A-Z0-9\s]/g, ' ').split(/\s+/).filter(Boolean);
   let base = words.length > 1 ? words.map((w) => w[0]).join('').slice(0, 4) : (words[0] ?? 'PRJ').slice(0, 3);
@@ -78,7 +100,7 @@ export class LocalStorageRepository implements Repository {
     if (raw) {
       try {
         const parsed: unknown = JSON.parse(raw);
-        if (isSnapshot(parsed)) return parsed;
+        if (isSnapshot(parsed)) return upgrade(parsed);
       } catch {
         /* fall through to the backup path */
       }
@@ -139,8 +161,11 @@ export class LocalStorageRepository implements Repository {
     if (project.archivedAt) throw new RepositoryError('This project is archived. Restore it to make changes.');
   }
 
-  private cleanIssueInput(snap: Snapshot, input: IssueInput): IssueInput {
-    const errors = validateIssue(input);
+  private cleanIssueInput(snap: Snapshot, input: IssueInput, project: Project): IssueInput {
+    const errors = validateIssue(
+      input,
+      project.columns.map((c) => c.id),
+    );
     if (hasErrors(errors)) throw new ValidationError(errors);
     const labelIds = input.labelIds.filter((id) => snap.labels.some((l) => l.id === id));
     const assigneeId = input.assigneeId && snap.users.some((u) => u.id === input.assigneeId) ? input.assigneeId : null;
@@ -174,6 +199,7 @@ export class LocalStorageRepository implements Repository {
       name: input.name.trim(),
       description: input.description.trim(),
       color: input.color || PROJECT_COLORS[0],
+      columns: defaultColumns(),
       archivedAt: null,
       createdAt: stamp,
       updatedAt: stamp,
@@ -219,6 +245,38 @@ export class LocalStorageRepository implements Repository {
     return { value: project, events };
   }
 
+  async updateColumns(id: ID, columns: Column[], moves: Record<ID, ID>): Promise<Mutation<Project>> {
+    const snap = this.read();
+    const project = this.project(snap, id);
+    this.assertEditable(project);
+    const next = columns.map((c) => ({ id: c.id, name: c.name.trim(), kind: c.kind }));
+    const problem = validateColumns(next);
+    if (problem) throw new RepositoryError(problem);
+    const keep = new Set(next.map((c) => c.id));
+    const removed = project.columns.filter((c) => !keep.has(c.id));
+    for (const gone of removed) {
+      const used = snap.issues.some((i) => i.projectId === id && i.status === gone.id);
+      if (!used) continue;
+      const target = moves[gone.id];
+      if (!target || !keep.has(target)) {
+        throw new RepositoryError(`Choose where the issues in "${gone.name}" should go.`);
+      }
+      for (const i of snap.issues) {
+        if (i.projectId === id && i.status === gone.id) {
+          i.status = target;
+          i.updatedAt = this.now().toISOString();
+        }
+      }
+    }
+    const before = JSON.stringify(project.columns);
+    if (before === JSON.stringify(next)) return { value: project, events: [] };
+    project.columns = next;
+    project.updatedAt = this.now().toISOString();
+    const e = this.event(snap, 'project.updated', id, null, { projectName: project.name, fields: ['columns'] });
+    this.write(snap);
+    return { value: project, events: [e] };
+  }
+
   async archiveProject(id: ID): Promise<Mutation<Project>> {
     const snap = this.read();
     const project = this.project(snap, id);
@@ -260,7 +318,7 @@ export class LocalStorageRepository implements Repository {
     const snap = this.read();
     const project = this.project(snap, projectId);
     this.assertEditable(project);
-    const clean = this.cleanIssueInput(snap, input);
+    const clean = this.cleanIssueInput(snap, input, project);
     const stamp = this.now().toISOString();
     project.issueCounter += 1;
     const issue: Issue = {
@@ -294,7 +352,7 @@ export class LocalStorageRepository implements Repository {
       dueDate: issue.dueDate,
       ...patch,
     };
-    const clean = this.cleanIssueInput(snap, merged);
+    const clean = this.cleanIssueInput(snap, merged, project);
 
     const changed: string[] = [];
     if (clean.title !== issue.title) changed.push('title');
@@ -315,8 +373,8 @@ export class LocalStorageRepository implements Repository {
         this.event(snap, 'issue.status_changed', project.id, id, {
           issueRef: ref,
           issueTitle: issue.title,
-          from: STATUS_META[fromStatus].label,
-          to: STATUS_META[issue.status].label,
+          from: columnName(project, fromStatus),
+          to: columnName(project, issue.status),
         }),
       );
     }

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createSeed } from '../data/seed';
+import { defaultColumns, doneIds, validateColumns } from './columns';
 import { addDays, describeDue, diffDays, formatDate, isValidDateString } from './dates';
 import { applyFilters, emptyFilters, groupIssues, sortIssues, upcomingDue } from './filters';
 import type { LookupContext } from './filters';
@@ -66,6 +67,8 @@ describe('filters, sorting and grouping', () => {
   const ctx: LookupContext = {
     today: '2026-11-05',
     projectKey: 'WEB',
+    columns: defaultColumns(),
+    doneIds: doneIds(defaultColumns()),
     usersById: new Map(snap.users.map((u) => [u.id, u])),
     labelsById: new Map(snap.labels.map((l) => [l.id, l])),
   };
@@ -94,15 +97,15 @@ describe('filters, sorting and grouping', () => {
   });
 
   it('sorts by priority and keeps undated issues last when sorting by due date', () => {
-    const byPriority = sortIssues(projectIssues, { field: 'priority', dir: 'desc' });
+    const byPriority = sortIssues(projectIssues, { field: 'priority', dir: 'desc' }, defaultColumns());
     expect(byPriority[0].priority).toBe('urgent');
-    const byDue = sortIssues(projectIssues, { field: 'due', dir: 'asc' });
+    const byDue = sortIssues(projectIssues, { field: 'due', dir: 'asc' }, defaultColumns());
     const firstUndated = byDue.findIndex((i) => !i.dueDate);
     expect(byDue.slice(firstUndated).every((i) => !i.dueDate)).toBe(true);
   });
 
   it('groups by status in board order and drops empty groups', () => {
-    const groups = groupIssues(sortIssues(projectIssues, { field: 'number', dir: 'asc' }), 'status', ctx);
+    const groups = groupIssues(sortIssues(projectIssues, { field: 'number', dir: 'asc' }, defaultColumns()), 'status', ctx);
     expect(groups.map((g) => g.key)).toEqual(['backlog', 'todo', 'in_progress', 'in_review', 'done']);
     expect(groups.reduce((n, g) => n + g.issues.length, 0)).toBe(projectIssues.length);
     const onlyDone = groupIssues(projectIssues.filter((i) => i.status === 'done'), 'status', ctx);
@@ -110,8 +113,43 @@ describe('filters, sorting and grouping', () => {
   });
 
   it('lists upcoming due issues, excluding done work', () => {
-    const up = upcomingDue(projectIssues, '2026-11-05', 14);
+    const up = upcomingDue(projectIssues, '2026-11-05', 14, ctx.doneIds);
     expect(up.every((i) => i.status !== 'done')).toBe(true);
     expect(up.map((i) => i.dueDate)).toEqual([...up.map((i) => i.dueDate)].sort());
+  });
+});
+
+describe('columns', () => {
+  it('starts every project with the five default columns', () => {
+    expect(defaultColumns().map((c) => c.name)).toEqual(['Backlog', 'Todo', 'In Progress', 'In Review', 'Done']);
+    expect([...doneIds(defaultColumns())]).toEqual(['done']);
+  });
+
+  it('rejects empty, duplicate, and too many columns', () => {
+    const base = defaultColumns();
+    expect(validateColumns([])).toBeTruthy();
+    expect(validateColumns([{ ...base[0], name: '  ' }])).toBeTruthy();
+    expect(validateColumns([base[0], { ...base[1], name: 'backlog' }])).toMatch(/Two columns/);
+    expect(validateColumns(Array.from({ length: 13 }, (_, i) => ({ id: `c${i}`, name: `C${i}`, kind: 'todo' as const })))).toBeTruthy();
+    expect(validateColumns(base)).toBeNull();
+  });
+
+  it('groups by a project with custom columns, in board order', () => {
+    const custom = [
+      { id: 'ideas', name: 'Ideas', kind: 'backlog' as const },
+      { id: 'shipped', name: 'Shipped', kind: 'done' as const },
+    ];
+    const snap = createSeed(NOW);
+    const cctx: LookupContext = {
+      today: '2026-11-05',
+      projectKey: 'WEB',
+      columns: custom,
+      doneIds: doneIds(custom),
+      usersById: new Map(snap.users.map((u) => [u.id, u])),
+      labelsById: new Map(snap.labels.map((l) => [l.id, l])),
+    };
+    const issues = snap.issues.filter((i) => i.projectId === 'p_web').map((i, n) => ({ ...i, status: n % 2 ? 'shipped' : 'ideas' }));
+    const groups = groupIssues(issues, 'status', cctx);
+    expect(groups.map((g) => g.label)).toEqual(['Ideas', 'Shipped']);
   });
 });

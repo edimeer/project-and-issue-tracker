@@ -1,7 +1,18 @@
 export type ID = string;
 
-export const STATUSES = ['backlog', 'todo', 'in_progress', 'in_review', 'done'] as const;
-export type Status = (typeof STATUSES)[number];
+/** What a column means. Controls its icon and colour, and whether issues in it count as finished. */
+export const COLUMN_KINDS = ['backlog', 'todo', 'in_progress', 'in_review', 'done'] as const;
+export type ColumnKind = (typeof COLUMN_KINDS)[number];
+
+/** A board column. Every project has its own ordered list of them. */
+export interface Column {
+  id: ID;
+  name: string;
+  kind: ColumnKind;
+}
+
+/** An issue's status is the id of the column it sits in. */
+export type Status = ID;
 
 export const PRIORITIES = ['low', 'medium', 'high', 'urgent'] as const;
 export type Priority = (typeof PRIORITIES)[number];
@@ -29,6 +40,8 @@ export interface Project {
   description: string;
   /** Accent colour (hex). */
   color: string;
+  /** Ordered board columns. New projects start with Backlog, Todo, In Progress, In Review, Done. */
+  columns: Column[];
   archivedAt: string | null;
   createdAt: string;
   updatedAt: string;

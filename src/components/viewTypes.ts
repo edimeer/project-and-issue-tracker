@@ -14,4 +14,5 @@ export interface IssueViewProps {
   onDelete: (issue: Issue) => void;
   onCreate: (status?: import('../domain/types').Status) => void;
   onClearFilters: () => void;
+  onEditColumns: () => void;
 }

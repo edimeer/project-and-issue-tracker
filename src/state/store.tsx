@@ -2,9 +2,9 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useReducer 
 import type { ReactNode } from 'react';
 import type { Repository } from '../data/repository';
 import { ValidationError } from '../domain/validation';
-import { STATUS_META } from '../domain/constants';
 import type {
   ActivityEvent,
+  Column,
   ID,
   Issue,
   IssueInput,
@@ -28,6 +28,7 @@ type Action =
   | { type: 'failed'; message: string }
   | { type: 'project'; project: Project; events: ActivityEvent[] }
   | { type: 'project-removed'; id: ID }
+  | { type: 'columns'; project: Project; moves: Record<ID, ID>; events: ActivityEvent[] }
   | { type: 'issue'; issue: Issue; events: ActivityEvent[] }
   | { type: 'issue-removed'; id: ID; events: ActivityEvent[] }
   | { type: 'label'; label: Label };
@@ -44,6 +45,13 @@ function reducer(state: State, action: Action): State {
   switch (action.type) {
     case 'project':
       return { phase: 'ready', data: { ...d, projects: upsert(d.projects, action.project), activity: [...action.events, ...d.activity] } };
+    case 'columns': {
+      const now = new Date().toISOString();
+      const issues = d.issues.map((i) =>
+        i.projectId === action.project.id && action.moves[i.status] ? { ...i, status: action.moves[i.status], updatedAt: now } : i,
+      );
+      return { phase: 'ready', data: { ...d, projects: upsert(d.projects, action.project), issues, activity: [...action.events, ...d.activity] } };
+    }
     case 'project-removed':
       return {
         phase: 'ready',
@@ -71,6 +79,7 @@ function reducer(state: State, action: Action): State {
 export interface StoreActions {
   createProject(input: ProjectInput): Promise<Project | null>;
   updateProject(id: ID, patch: Partial<ProjectInput>): Promise<Project | null>;
+  updateColumns(id: ID, columns: Column[], moves: Record<ID, ID>): Promise<boolean>;
   archiveProject(id: ID): Promise<boolean>;
   restoreProject(id: ID): Promise<boolean>;
   deleteProject(id: ID): Promise<boolean>;
@@ -79,7 +88,6 @@ export interface StoreActions {
   moveIssue(id: ID, status: Status): Promise<boolean>;
   deleteIssue(id: ID): Promise<boolean>;
   createLabel(input: LabelInput): Promise<Label | null>;
-  resetSample(): Promise<boolean>;
 }
 
 interface StoreValue {
@@ -143,6 +151,13 @@ export function StoreProvider({ repo, children }: { repo: Repository; children: 
         if (r.events.length) toast.success('Project saved.');
         return r.value;
       },
+      async updateColumns(id, columns, moves) {
+        const r = await run('save the columns', () => repo.updateColumns(id, columns, moves));
+        if (!r) return false;
+        dispatch({ type: 'columns', project: r.value, moves, events: r.events });
+        if (r.events.length) toast.success('Columns saved.');
+        return true;
+      },
       async archiveProject(id) {
         const r = await run('archive the project', () => repo.archiveProject(id));
         if (!r) return false;
@@ -185,7 +200,7 @@ export function StoreProvider({ repo, children }: { repo: Repository; children: 
         const r = await run('move the issue', () => repo.moveIssue(id, status));
         if (!r) return false;
         dispatch({ type: 'issue', issue: r.value, events: r.events });
-        if (r.events.length) toast.success(`Moved to ${STATUS_META[status].label}.`);
+        if (r.events.length) toast.success('Issue moved.');
         return true;
       },
       async deleteIssue(id) {
@@ -200,13 +215,6 @@ export function StoreProvider({ repo, children }: { repo: Repository; children: 
         if (!label) return null;
         dispatch({ type: 'label', label });
         return label;
-      },
-      async resetSample() {
-        const data = await run('reset the sample data', () => repo.resetToSample());
-        if (!data) return false;
-        dispatch({ type: 'loaded', data });
-        toast.success('Sample data restored.');
-        return true;
       },
     }),
     [repo, run, toast],

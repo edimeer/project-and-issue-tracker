@@ -1,8 +1,7 @@
 import { useMemo, useState } from 'react';
-import { PRIORITY_META, STATUS_META } from '../domain/constants';
+import { PRIORITY_META } from '../domain/constants';
 import { groupIssues, issueRef } from '../domain/filters';
 import type { GroupBy, SortField, SortState } from '../domain/filters';
-import { STATUSES } from '../domain/types';
 import type { Issue } from '../domain/types';
 import { useStore } from '../state/store';
 import { buildIssueMenu } from './issueMenu';
@@ -83,13 +82,14 @@ function Group({ groupKey, label, groupBy, issues, project, ctx, readOnly, onOpe
   const [open, setOpen] = useState(true);
   const [limit, setLimit] = useState(PAGE);
   const panelId = `group-${groupBy}-${groupKey}`;
+  const columnOfGroup = project.columns.find((c) => c.id === groupKey);
   return (
     <section className="list-group">
       {label !== null && (
         <h2 className="group-title">
           <button type="button" className="group-toggle" aria-expanded={open} aria-controls={panelId} onClick={() => setOpen(!open)}>
             <Icon name={open ? 'chevron-down' : 'chevron-right'} size={16} />
-            {groupBy === 'status' && <StatusIcon status={groupKey as (typeof STATUSES)[number]} />}
+            {groupBy === 'status' && columnOfGroup && <StatusIcon kind={columnOfGroup.kind} />}
             <span>{label}</span>
             <span className="count">{issues.length}</span>
           </button>
@@ -118,6 +118,7 @@ function Row({ issue, project, ctx, readOnly, onOpen, onDelete }: Pick<IssueView
   const assignee = issue.assigneeId ? usersById.get(issue.assigneeId) : undefined;
   const labels = issue.labelIds.map((id) => labelsById.get(id)).filter((l) => !!l);
   const ref = issueRef(project, issue);
+  const column = project.columns.find((c) => c.id === issue.status);
 
   return (
     <li className="row">
@@ -137,19 +138,19 @@ function Row({ issue, project, ctx, readOnly, onOpen, onDelete }: Pick<IssueView
       </div>
       <span className="row-status">
         {readOnly ? (
-          <StatusBadge status={issue.status} />
+          <StatusBadge column={column} />
         ) : (
           <Menu
-            label={`Change status of ${ref}, currently ${STATUS_META[issue.status].label}`}
+            label={`Move ${ref} to another column, currently ${column?.name ?? 'unknown'}`}
             align="start"
             className="badge-btn"
-            trigger={<StatusBadge status={issue.status} />}
-            entries={STATUSES.map((s) => ({
+            trigger={<StatusBadge column={column} />}
+            entries={project.columns.map((c) => ({
               kind: 'item' as const,
-              label: STATUS_META[s].label,
-              icon: <StatusIcon status={s} />,
-              checked: issue.status === s,
-              onSelect: () => void actions.moveIssue(issue.id, s),
+              label: c.name,
+              icon: <StatusIcon kind={c.kind} />,
+              checked: issue.status === c.id,
+              onSelect: () => void actions.moveIssue(issue.id, c.id),
             }))}
           />
         )}
@@ -158,11 +159,11 @@ function Row({ issue, project, ctx, readOnly, onOpen, onDelete }: Pick<IssueView
         <PriorityBadge priority={issue.priority} />
       </span>
       <span className="row-assignee">{assignee ? <Avatar user={assignee} size={24} /> : <span className="unassigned" title="Unassigned">-</span>}</span>
-      <span className="row-due">{issue.dueDate ? <DueChip dueDate={issue.dueDate} status={issue.status} today={ctx.today} /> : <span className="muted">No date</span>}</span>
+      <span className="row-due">{issue.dueDate ? <DueChip dueDate={issue.dueDate} done={ctx.doneIds.has(issue.status)} today={ctx.today} /> : <span className="muted">No date</span>}</span>
       <span className="row-menu">
         <Menu
           label={`Actions for ${ref}`}
-          entries={buildIssueMenu({ issue, readOnly, actions, onOpen, onDelete })}
+          entries={buildIssueMenu({ issue, columns: project.columns, readOnly, actions, onOpen, onDelete })}
         />
       </span>
     </li>

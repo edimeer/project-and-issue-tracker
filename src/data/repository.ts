@@ -1,5 +1,6 @@
 import type {
   ActivityEvent,
+  Column,
   ID,
   Issue,
   IssueInput,
@@ -36,6 +37,11 @@ export interface Repository {
   updateProject(id: ID, patch: Partial<ProjectInput>): Promise<Mutation<Project>>;
   archiveProject(id: ID): Promise<Mutation<Project>>;
   restoreProject(id: ID): Promise<Mutation<Project>>;
+  /**
+   * Replaces the project's columns. New columns carry client-made ids. A column that is
+   * removed must have an entry in `moves` saying which remaining column takes its issues.
+   */
+  updateColumns(id: ID, columns: Column[], moves: Record<ID, ID>): Promise<Mutation<Project>>;
   /** Permanently removes the project, its issues and its activity. */
   deleteProject(id: ID): Promise<void>;
 

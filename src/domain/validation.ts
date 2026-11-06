@@ -1,6 +1,6 @@
 import { LIMITS } from './constants';
 import { isValidDateString } from './dates';
-import { PRIORITIES, STATUSES } from './types';
+import { PRIORITIES } from './types';
 import type { IssueInput, LabelInput, ProjectInput } from './types';
 
 export type FieldErrors<T> = Partial<Record<keyof T, string>>;
@@ -26,7 +26,8 @@ export function validateProject(input: ProjectInput): FieldErrors<ProjectInput> 
   return errors;
 }
 
-export function validateIssue(input: IssueInput): FieldErrors<IssueInput> {
+/** `columnIds` is the project's valid status ids. Omit it to skip the membership check. */
+export function validateIssue(input: IssueInput, columnIds?: string[]): FieldErrors<IssueInput> {
   const errors: FieldErrors<IssueInput> = {};
   const title = input.title.trim();
   if (!title) errors.title = 'Give the issue a title.';
@@ -34,7 +35,7 @@ export function validateIssue(input: IssueInput): FieldErrors<IssueInput> {
   if (input.description.length > LIMITS.issueDescription) {
     errors.description = `Keep the description under ${LIMITS.issueDescription} characters.`;
   }
-  if (!STATUSES.includes(input.status)) errors.status = 'Choose a valid status.';
+  if (!input.status || (columnIds && !columnIds.includes(input.status))) errors.status = 'Choose a column from this project.';
   if (!PRIORITIES.includes(input.priority)) errors.priority = 'Choose a valid priority.';
   if (input.dueDate !== null && !isValidDateString(input.dueDate)) {
     errors.dueDate = 'Enter a real date, like 2026-11-30.';

@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState } from 'react';
 import { Link, NavLink, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { Board } from '../components/Board';
+import { ColumnsDialog } from '../components/ColumnsDialog';
 import { FilterBar } from '../components/FilterBar';
 import { IssueDialog } from '../components/IssueDialog';
 import { IssueList } from '../components/IssueList';
@@ -10,9 +11,9 @@ import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { EmptyState } from '../components/ui/EmptyState';
 import { Icon } from '../components/ui/Icon';
 import { Menu } from '../components/ui/Menu';
+import { doneIds, firstColumnId } from '../domain/columns';
 import { applyFilters, countActiveFilters, emptyFilters, issueRef, sortIssues } from '../domain/filters';
 import type { GroupBy, IssueFilters, SortField, SortState } from '../domain/filters';
-import { STATUSES } from '../domain/types';
 import type { Issue, Status } from '../domain/types';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { useToday } from '../hooks/useToday';
@@ -42,21 +43,23 @@ function ProjectScreen({ projectId }: { projectId: string }) {
   const [sort, setSort] = useState<SortState>({ field: 'updated', dir: 'desc' });
   const [groupBy, setGroupBy] = useState<GroupBy>('none');
   const [editing, setEditing] = useState(false);
+  const [editingColumns, setEditingColumns] = useState<null | 'edit' | 'add'>(null);
   const [confirm, setConfirm] = useState<'archive' | 'delete-project' | null>(null);
   const [issueToDelete, setIssueToDelete] = useState<Issue | null>(null);
 
   const projectIssues = useMemo(() => data.issues.filter((i) => i.projectId === projectId), [data.issues, projectId]);
+  const columns = project?.columns;
   const ctx = useMemo(
-    () => ({ today, projectKey: project?.key ?? '', usersById, labelsById }),
-    [today, project?.key, usersById, labelsById],
+    () => ({ today, projectKey: project?.key ?? '', columns: columns ?? [], doneIds: doneIds(columns ?? []), usersById, labelsById }),
+    [today, project?.key, columns, usersById, labelsById],
   );
   const filtered = useMemo(() => applyFilters(projectIssues, filters, ctx), [projectIssues, filters, ctx]);
-  const sorted = useMemo(() => sortIssues(filtered, sort), [filtered, sort]);
+  const sorted = useMemo(() => sortIssues(filtered, sort, columns ?? []), [filtered, sort, columns]);
 
   const openIssueId = params.get('issue');
   const newStatusParam = params.get('new');
   const creating = newStatusParam !== null;
-  const newStatus = (STATUSES as readonly string[]).includes(newStatusParam ?? '') ? (newStatusParam as Status) : 'todo';
+  const newStatus: Status = project && newStatusParam && project.columns.some((c) => c.id === newStatusParam) ? newStatusParam : project ? firstColumnId(project.columns) : 'todo';
 
   const closeIssue = useCallback(() => {
     setParams(
@@ -126,6 +129,7 @@ function ProjectScreen({ projectId }: { projectId: string }) {
     onDelete: setIssueToDelete,
     onCreate: startCreate,
     onClearFilters: () => setFilters(emptyFilters),
+    onEditColumns: () => setEditingColumns('add'),
   };
 
   return (
@@ -151,6 +155,7 @@ function ProjectScreen({ projectId }: { projectId: string }) {
             className="btn btn-icon"
             entries={[
               { kind: 'item', label: 'Rename or edit project', icon: 'pencil', disabled: readOnly, onSelect: () => setEditing(true) },
+              { kind: 'item', label: 'Edit columns', icon: 'columns', disabled: readOnly, onSelect: () => setEditingColumns('edit') },
               readOnly
                 ? { kind: 'item', label: 'Restore project', icon: 'restore', onSelect: () => void actions.restoreProject(project.id) }
                 : { kind: 'item', label: 'Archive project', icon: 'archive', onSelect: () => setConfirm('archive') },
@@ -208,6 +213,7 @@ function ProjectScreen({ projectId }: { projectId: string }) {
           <FilterBar
             filters={filters}
             onChange={setFilters}
+            columns={project.columns}
             shown={filtered.length}
             total={projectIssues.length}
             listControls={
@@ -232,6 +238,7 @@ function ProjectScreen({ projectId }: { projectId: string }) {
 
       {issueNode}
       {editing && <ProjectDialog project={project} onClose={() => setEditing(false)} />}
+      {editingColumns && <ColumnsDialog project={project} startWithNew={editingColumns === 'add'} onClose={() => setEditingColumns(null)} />}
 
       {confirm === 'archive' && (
         <ConfirmDialog

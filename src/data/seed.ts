@@ -1,10 +1,11 @@
+import { defaultColumns } from '../domain/columns';
 import { addDays, todayString } from '../domain/dates';
 import type { ActivityEvent, Issue, Label, Priority, Project, Snapshot, Status, User } from '../domain/types';
 
 export const SNAPSHOT_VERSION = 1;
 
 const users: User[] = [
-  { id: 'u_maya', name: 'Maya Chen', email: 'maya@example.com', color: '#1f4d3f' },
+  { id: 'u_maya', name: 'Edi', email: 'edi@example.com', color: '#1f4d3f' },
   { id: 'u_dev', name: 'Dev Patel', email: 'dev@example.com', color: '#2f5fa7' },
   { id: 'u_sofia', name: 'Sofia Alvarez', email: 'sofia@example.com', color: '#a63a55' },
   { id: 'u_jonas', name: 'Jonas Weber', email: 'jonas@example.com', color: '#7a4a9e' },
@@ -105,6 +106,7 @@ export function createSeed(now: Date = new Date()): Snapshot {
       name: def.name,
       description: def.description,
       color: def.color,
+      columns: defaultColumns(),
       archivedAt: def.archived ? iso(20, 15, now) : null,
       createdAt: created,
       updatedAt: def.archived ? iso(20, 15, now) : created,

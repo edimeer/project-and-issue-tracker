@@ -1,7 +1,7 @@
 /* ==========================================================================
    Plumbline design tokens
-   Identity: cool limestone, slate ink, one chalk-line blue. Red only means trouble.
-   Shape: hairline edges and square-ish corners; the board hangs from a rail on threads.
+   Palette comes from the plumb bob: deep teal ink, a near-white canvas, brass for the
+   rail and threads, teal for actions. Red only ever means trouble.
    Type: Bricolage Grotesque for headings, IBM Plex Sans for everything else.
    ========================================================================== */
 :root {
@@ -9,37 +9,47 @@
   --font-display: 'Bricolage Grotesque Variable', 'IBM Plex Sans Variable', system-ui, sans-serif;
   --font-mono: var(--font-ui);
 
-  --bg: #e9ece8;
-  --surface: #fafbf9;
-  --surface-2: #f1f3ef;
-  --surface-3: #e1e5e0;
-  --ink: #17222b;
-  --ink-2: #4a5864;
-  --line: #d3d9d3;
-  --line-strong: #aab4ae;
-  --brand: #2446e0;
+  --bg: #fafcfb;
+  --surface: #ffffff;
+  --surface-2: #f4f8f7;
+  --surface-3: #e9f0ee;
+  --ink: #0f1f1e;
+  --ink-2: #4a5e5b;
+  --line: #dde5e3;
+  --line-strong: #b4c2bf;
+  --brand: #0b6e69;
   --on-brand: #ffffff;
-  --accent: #2e5bff;
-  --accent-ink: #2446e0;
-  --focus: #2e5bff;
+  --accent: #0b6e69;
+  --accent-ink: #0b6e69;
+  --brass: #c8932a;
+  --focus: #0b6e69;
   --danger: #b5301b;
-  --danger-bg: #f9e4df;
-  --warn-ink: #8a5300;
-  --warn-bg: #f8eed6;
-  --ok: #1f7a52;
+  --danger-bg: #fbe7e2;
+  --warn-ink: #85500a;
+  --warn-bg: #f9eed7;
+  --ok: #1e8a55;
   --shadow-1: none;
-  --shadow-2: 0 12px 32px rgb(23 34 43 / 0.22);
-  --backdrop: rgb(23 34 43 / 0.5);
+  --shadow-2: 0 14px 34px rgb(8 31 30 / 0.22);
+  --backdrop: rgb(8 31 30 / 0.5);
 
-  --st-backlog: #6b7782;
-  --st-todo: #4a5d78;
-  --st-in_progress: #2446e0;
-  --st-in_review: #7342c9;
-  --st-done: #1f7a52;
+  --side-bg: #eaf3f1;
+  --side-ink: #14312f;
+  --side-ink-2: #4a6663;
+  --side-line: #d0e1de;
+  --side-hover: rgb(11 110 105 / 0.08);
+  --side-active: rgb(11 110 105 / 0.15);
+  --side-active-ink: #0b4f4b;
+  --side-focus: #0b6e69;
 
-  --pr-low: #6b7782;
-  --pr-medium: #3b6aa8;
-  --pr-high: #c25e05;
+  --st-backlog: #6b7b79;
+  --st-todo: #3e6ea8;
+  --st-in_progress: #c77700;
+  --st-in_review: #7a52c7;
+  --st-done: #1e8a55;
+
+  --pr-low: #6b7b79;
+  --pr-medium: #3e6ea8;
+  --pr-high: #d2630a;
   --pr-urgent: #b5301b;
 
   --radius: 4px;
@@ -51,35 +61,45 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #0e151c;
-    --surface: #16202a;
-    --surface-2: #1b2732;
-    --surface-3: #243342;
-    --ink: #e7ecf0;
-    --ink-2: #a2b0bb;
-    --line: #2b3a48;
-    --line-strong: #44586a;
-    --brand: #7b9bff;
-    --on-brand: #0a1220;
-    --accent: #7b9bff;
-    --accent-ink: #9db4ff;
-    --focus: #9db4ff;
+    --bg: #0a1413;
+    --surface: #112120;
+    --surface-2: #162928;
+    --surface-3: #1e3534;
+    --ink: #e6f1ef;
+    --ink-2: #9fb6b2;
+    --line: #22403e;
+    --line-strong: #3a5e5b;
+    --brand: #35c2b5;
+    --on-brand: #04201e;
+    --accent: #35c2b5;
+    --accent-ink: #6fe0d4;
+    --brass: #e3b04b;
+    --focus: #7fe3d8;
     --danger: #ff8d79;
     --danger-bg: #3b1f1a;
     --warn-ink: #f2bf6b;
     --warn-bg: #382d14;
     --ok: #6fcf97;
     --shadow-2: 0 14px 36px rgb(0 0 0 / 0.6);
-    --backdrop: rgb(0 0 0 / 0.62);
+    --backdrop: rgb(0 0 0 / 0.64);
 
-    --st-backlog: #94a1ad;
-    --st-todo: #8fa6c4;
-    --st-in_progress: #7b9bff;
+    --side-bg: #07191a;
+    --side-ink: #e8f1ef;
+    --side-ink-2: #9db8b4;
+    --side-line: #173a3b;
+    --side-hover: rgb(255 255 255 / 0.08);
+    --side-active: rgb(255 255 255 / 0.14);
+    --side-active-ink: #ffffff;
+    --side-focus: #f3d07a;
+
+    --st-backlog: #96aaa7;
+    --st-todo: #8fb0dc;
+    --st-in_progress: #f0a640;
     --st-in_review: #b99bf2;
     --st-done: #6fcf97;
 
-    --pr-low: #94a1ad;
-    --pr-medium: #86aee3;
+    --pr-low: #96aaa7;
+    --pr-medium: #8fb0dc;
     --pr-high: #f59a4a;
     --pr-urgent: #ff8d79;
     color-scheme: dark;
@@ -1457,7 +1477,7 @@ dialog[open].dialog-sheet {
 }
 .stat-grid {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(128px, 1fr));
   gap: 10px;
 }
 .stat {
@@ -1581,7 +1601,7 @@ dialog[open].dialog-sheet {
 /* ---------- Board ---------- */
 .board-columns {
   display: grid;
-  grid-template-columns: repeat(5, minmax(272px, 1fr));
+  grid-template-columns: repeat(var(--cols, 5), minmax(272px, 1fr)) minmax(170px, 210px);
   gap: 14px;
   overflow-x: auto;
   padding-bottom: 12px;
@@ -1979,7 +1999,7 @@ h1, h2, h3, .page-title, .dialog-title, .panel-title, .empty-title,
 .board-columns {
   position: relative;
   padding-top: 18px;
-  border-top: 3px solid color-mix(in srgb, var(--ink) 80%, var(--bg));
+  border-top: 3px solid var(--brass);
   padding-bottom: 22px;
   padding-left: 14px;
   gap: 22px;
@@ -1999,8 +2019,8 @@ h1, h2, h3, .page-title, .dialog-title, .panel-title, .empty-title,
   top: -18px;
   bottom: 0;
   width: 2px;
-  background: var(--ink);
-  opacity: 0.55;
+  background: var(--brass);
+  opacity: 0.7;
   transition: background 0.15s, opacity 0.15s;
 }
 .column-header { padding: 0 4px 10px 0; }
@@ -2023,7 +2043,7 @@ h1, h2, h3, .page-title, .dialog-title, .panel-title, .empty-title,
 /* Plumb gauge on the overview: a thread with a weight that sits at the percent done */
 .status-panel { display: grid; grid-template-columns: 56px minmax(0, 1fr); gap: 20px; align-items: stretch; }
 .gauge { position: relative; width: 56px; min-height: 150px; }
-.gauge-thread { position: absolute; left: 50%; top: 0; bottom: 0; width: 2px; background: var(--line-strong); transform: translateX(-50%); }
+.gauge-thread { position: absolute; left: 50%; top: 0; bottom: 0; width: 2px; background: var(--brass); opacity: 0.6; transform: translateX(-50%); }
 .gauge-fill { position: absolute; left: 50%; bottom: 0; width: 2px; background: var(--st-done); transform: translateX(-50%); }
 .gauge-bob {
   position: absolute; left: 50%; width: 22px; height: 22px; border-radius: 50%;
@@ -2037,4 +2057,66 @@ h1, h2, h3, .page-title, .dialog-title, .panel-title, .empty-title,
   .board-columns { gap: 18px; }
   .status-panel { grid-template-columns: 44px minmax(0, 1fr); gap: 14px; }
   .gauge { width: 44px; }
+}
+
+
+/* ==========================================================================
+   Sidebar on deep teal, column manager, add-column tile
+   ========================================================================== */
+.sidebar { background: var(--side-bg); border-right: 0; color: var(--side-ink); }
+.sidebar .brand-name { color: var(--side-ink); }
+.sidebar :focus-visible { outline-color: var(--side-focus); }
+.sidebar .nav-link { color: var(--side-ink); }
+.sidebar .nav-link:hover { background: var(--side-hover); }
+.sidebar .nav-link.active {
+  background: var(--side-active);
+  color: var(--side-active-ink);
+  box-shadow: inset 3px 0 0 var(--brass);
+  border-radius: 0 var(--radius) var(--radius) 0;
+}
+.sidebar .nav-heading, .sidebar .nav-empty, .sidebar .nav-add { color: var(--side-ink-2); }
+.sidebar .nav-count { background: var(--side-hover); color: var(--side-ink-2); }
+.sidebar .nav-link.active .nav-count { background: var(--side-active); color: var(--side-active-ink); }
+.sidebar .sidebar-user { border-top-color: var(--side-line); }
+.sidebar .sidebar-user small { color: var(--side-ink-2); }
+.sidebar-user strong { display: block; }
+
+.brand svg .logo-bg { fill: var(--logo-bg, var(--ink)); }
+.brand svg .logo-thread { stroke: var(--logo-fg, var(--bg)); }
+.brand svg .logo-bob { fill: var(--logo-bob, var(--brass)); }
+.sidebar .brand, .topbar .brand { --logo-bg: var(--brand); --logo-fg: var(--on-brand); --logo-bob: var(--brass); }
+
+.badge-text { overflow: hidden; text-overflow: ellipsis; max-width: 16ch; }
+.stat-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.column-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.column-title { min-width: 0; }
+.btn-quiet { border-style: dashed; color: var(--ink-2); }
+
+.column-add { background: transparent; padding-left: 0; }
+.column-add::before, .column-add .column-weight { display: none; }
+.add-column-btn {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  width: 100%; min-height: 56px; margin-top: 2px;
+  border: 1.5px dashed var(--line-strong); border-radius: 2px; background: transparent;
+  color: var(--ink-2); font-weight: 600;
+}
+.add-column-btn:hover { border-color: var(--brand); color: var(--brand); background: var(--surface); }
+
+.columns-list { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.columns-row {
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: start; gap: 12px;
+  padding: 12px; border: 1px solid var(--line); border-radius: 2px; background: var(--surface-2);
+}
+.columns-row > .status-icon { margin-top: 12px; }
+.columns-fields { display: grid; gap: 8px; min-width: 0; }
+.columns-actions { display: flex; gap: 2px; margin-top: 4px; }
+.columns-row.is-removed {
+  grid-template-columns: 1fr; border-style: dashed; background: var(--danger-bg); gap: 8px;
+}
+.columns-move { display: grid; gap: 4px; font-size: 14px; }
+.columns-removed-text { overflow-wrap: anywhere; }
+dialog.dialog-modal:has(#columns-form) { width: min(640px, calc(100% - 32px)); }
+@media (max-width: 719px) {
+  .columns-row { grid-template-columns: auto minmax(0, 1fr); }
+  .columns-actions { grid-column: 1 / -1; justify-content: flex-end; }
 }

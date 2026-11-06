@@ -1,9 +1,8 @@
 import { useMemo } from 'react';
-import { STATUS_META } from '../domain/constants';
 import { describeDue } from '../domain/dates';
+import { doneIds } from '../domain/columns';
 import { isOverdue, issueRef, upcomingDue } from '../domain/filters';
 import { PRIORITY_META } from '../domain/constants';
-import { STATUSES } from '../domain/types';
 import type { Issue, Project } from '../domain/types';
 import { useStore } from '../state/store';
 import { ActivityFeed } from './ActivityFeed';
@@ -23,21 +22,23 @@ interface Props {
 export function Overview({ project, issues, today, readOnly, onOpen, onCreate }: Props) {
   const { data } = useStore();
 
+  const columns = project.columns;
+  const doneSet = useMemo(() => doneIds(columns), [columns]);
   const counts = useMemo(() => {
-    const c = Object.fromEntries(STATUSES.map((s) => [s, 0])) as Record<(typeof STATUSES)[number], number>;
-    for (const i of issues) c[i.status] += 1;
+    const c = new Map<string, number>(columns.map((col) => [col.id, 0]));
+    for (const i of issues) c.set(i.status, (c.get(i.status) ?? 0) + 1);
     return c;
-  }, [issues]);
+  }, [issues, columns]);
 
   const total = issues.length;
-  const done = counts.done;
+  const done = issues.filter((i) => doneSet.has(i.status)).length;
   const open = total - done;
-  const overdue = issues.filter((i) => isOverdue(i, today));
+  const overdue = issues.filter((i) => isOverdue(i, today, doneSet));
   const attention = issues
-    .filter((i) => i.status !== 'done' && (i.priority === 'urgent' || isOverdue(i, today)))
+    .filter((i) => !doneSet.has(i.status) && (i.priority === 'urgent' || isOverdue(i, today, doneSet)))
     .sort((a, b) => PRIORITY_META[b.priority].rank - PRIORITY_META[a.priority].rank || (a.dueDate ?? '9').localeCompare(b.dueDate ?? '9'))
     .slice(0, 6);
-  const upcoming = upcomingDue(issues, today, 14).slice(0, 8);
+  const upcoming = upcomingDue(issues, today, 14, doneSet).slice(0, 8);
   const activity = data.activity.filter((a) => a.projectId === project.id).slice(0, 10);
 
   if (total === 0) {
@@ -62,7 +63,7 @@ export function Overview({ project, issues, today, readOnly, onOpen, onCreate }:
     <div className="overview">
       <section className="panel panel-wide" aria-labelledby="ov-status">
         <h2 id="ov-status" className="panel-title">
-          Issues by status
+          Issues by column
         </h2>
         <div className="status-panel">
         <div className="gauge" role="img" aria-label={`${Math.round((done / total) * 100)}% of issues done`}>
@@ -74,8 +75,8 @@ export function Overview({ project, issues, today, readOnly, onOpen, onCreate }:
         <div>
         <div className="progress-line">
           <div className="progress-bar" role="img" aria-label={`${done} of ${total} issues done`}>
-            {STATUSES.map((s) => (
-              <span key={s} className={`progress-seg status-${s}`} style={{ flexGrow: counts[s] }} />
+            {columns.map((c) => (
+              <span key={c.id} className={`progress-seg status-${c.kind}`} style={{ flexGrow: counts.get(c.id) ?? 0 }} />
             ))}
           </div>
           <p className="progress-text">
@@ -83,12 +84,12 @@ export function Overview({ project, issues, today, readOnly, onOpen, onCreate }:
           </p>
         </div>
         <ul className="stat-grid">
-          {STATUSES.map((s) => (
-            <li key={s} className={`stat status-${s}`}>
+          {columns.map((c) => (
+            <li key={c.id} className={`stat status-${c.kind}`}>
               <span className="stat-label">
-                <StatusIcon status={s} /> {STATUS_META[s].label}
+                <StatusIcon kind={c.kind} /> <span className="stat-name">{c.name}</span>
               </span>
-              <span className="stat-value">{counts[s]}</span>
+              <span className="stat-value">{counts.get(c.id) ?? 0}</span>
             </li>
           ))}
         </ul>

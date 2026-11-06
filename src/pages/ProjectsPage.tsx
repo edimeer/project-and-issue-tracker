@@ -6,6 +6,7 @@ import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { EmptyState } from '../components/ui/EmptyState';
 import { Icon } from '../components/ui/Icon';
 import { describeDue, formatDate } from '../domain/dates';
+import { doneIds } from '../domain/columns';
 import { isOverdue, issueRef } from '../domain/filters';
 import type { Project } from '../domain/types';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
@@ -17,18 +18,19 @@ export function ProjectsPage() {
   const { data, actions, currentUser } = useStore();
   const today = useToday();
   const [creating, setCreating] = useState(false);
-  const [resetting, setResetting] = useState(false);
   const [deleting, setDeleting] = useState<Project | null>(null);
 
   const stats = useMemo(() => {
     const map = new Map<string, { total: number; done: number; overdue: number }>();
+    const finished = new Map(data.projects.map((p) => [p.id, doneIds(p.columns)]));
     for (const p of data.projects) map.set(p.id, { total: 0, done: 0, overdue: 0 });
     for (const i of data.issues) {
       const s = map.get(i.projectId);
-      if (!s) continue;
+      const fin = finished.get(i.projectId);
+      if (!s || !fin) continue;
       s.total += 1;
-      if (i.status === 'done') s.done += 1;
-      if (isOverdue(i, today)) s.overdue += 1;
+      if (fin.has(i.status)) s.done += 1;
+      if (isOverdue(i, today, fin)) s.overdue += 1;
     }
     return map;
   }, [data.projects, data.issues, today]);
@@ -37,7 +39,10 @@ export function ProjectsPage() {
   const archived = data.projects.filter((p) => p.archivedAt);
   const projectsById = new Map(data.projects.map((p) => [p.id, p]));
   const mine = data.issues
-    .filter((i) => i.assigneeId === currentUser.id && i.status !== 'done' && !projectsById.get(i.projectId)?.archivedAt)
+    .filter((i) => {
+      const p = projectsById.get(i.projectId);
+      return i.assigneeId === currentUser.id && !!p && !p.archivedAt && !doneIds(p.columns).has(i.status);
+    })
     .sort((a, b) => (a.dueDate ?? '9999').localeCompare(b.dueDate ?? '9999'))
     .slice(0, 6);
 
@@ -150,28 +155,8 @@ export function ProjectsPage() {
         </section>
       )}
 
-      <footer className="page-footer">
-        <p>Your data is stored only in this browser. Changing, adding and deleting anything here is safe.</p>
-        <button type="button" className="btn btn-sm" onClick={() => setResetting(true)}>
-          Restore sample data
-        </button>
-      </footer>
 
       {creating && <ProjectDialog onClose={() => setCreating(false)} />}
-      {resetting && (
-        <ConfirmDialog
-          title="Replace everything with sample data?"
-          confirmLabel="Replace all data"
-          danger
-          onCancel={() => setResetting(false)}
-          onConfirm={async () => {
-            await actions.resetSample();
-            setResetting(false);
-          }}
-        >
-          <p>All of your projects and issues will be removed and the original examples restored. This cannot be undone.</p>
-        </ConfirmDialog>
-      )}
       {deleting && (
         <ConfirmDialog
           title="Delete this project forever?"

@@ -28,6 +28,9 @@ const PATHS = {
   restore: 'M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5',
   grip: 'M9 6h.01M9 12h.01M9 18h.01M15 6h.01M15 12h.01M15 18h.01',
   home: 'm3 11 9-8 9 8M5 10v10h14V10',
+  columns: 'M3 4h5a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H3zM9.5 4h5a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-5zM16 4h5v16h-5z',
+  up: 'm18 15-6-6-6 6',
+  down: 'm6 9 6 6 6-6',
   sort: 'M3 6h13M3 12h9M3 18h5M17 10l4 4 4-4M21 14V4',
 } as const;
 

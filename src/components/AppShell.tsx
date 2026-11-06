@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation, useMatch } from 'react-router-dom';
+import { doneIds } from '../domain/columns';
 import { useStore } from '../state/store';
 import { Brand } from './Brand';
 import { ProjectDialog } from './ProjectDialog';
@@ -11,7 +12,8 @@ function SidebarNav({ onNavigate, onNewProject }: { onNavigate?: () => void; onN
   const { data, currentUser } = useStore();
   const active = data.projects.filter((p) => !p.archivedAt);
   const openCounts = new Map<string, number>();
-  for (const i of data.issues) if (i.status !== 'done') openCounts.set(i.projectId, (openCounts.get(i.projectId) ?? 0) + 1);
+  const finished = new Map(data.projects.map((p) => [p.id, doneIds(p.columns)]));
+  for (const i of data.issues) if (!finished.get(i.projectId)?.has(i.status)) openCounts.set(i.projectId, (openCounts.get(i.projectId) ?? 0) + 1);
 
   return (
     <nav className="sidebar-nav" aria-label="Projects">
@@ -47,7 +49,6 @@ function SidebarNav({ onNavigate, onNewProject }: { onNavigate?: () => void; onN
         <Avatar user={currentUser} size={28} />
         <span>
           <strong>{currentUser.name}</strong>
-          <small>Demo workspace (saved in this browser)</small>
         </span>
       </div>
     </nav>

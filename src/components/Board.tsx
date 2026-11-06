@@ -14,10 +14,9 @@ import {
   useSensors,
 } from '@dnd-kit/core';
 import type { Announcements, CollisionDetection, DragEndEvent, DragStartEvent, KeyboardCoordinateGetter } from '@dnd-kit/core';
-import { PRIORITY_META, STATUS_META } from '../domain/constants';
+import { PRIORITY_META } from '../domain/constants';
 import { issueRef } from '../domain/filters';
-import { STATUSES } from '../domain/types';
-import type { Issue, Status } from '../domain/types';
+import type { Column, ID, Issue } from '../domain/types';
 import { useMediaQuery } from '../hooks/useMediaQuery';
 import { useStore } from '../state/store';
 import { IssueCard } from './IssueCard';
@@ -36,30 +35,32 @@ function orderForBoard(issues: Issue[]): Issue[] {
 }
 
 /** Arrow Left/Right while holding a card jumps to the neighbouring column. */
-const columnKeyboardGetter: KeyboardCoordinateGetter = (event, { context: { droppableRects, collisionRect }, currentCoordinates }) => {
-  if (!collisionRect) return undefined;
-  if (event.code !== 'ArrowRight' && event.code !== 'ArrowLeft') return undefined;
-  event.preventDefault();
-  const columns = STATUSES.map((s) => ({ s, rect: droppableRects.get(s) })).filter((c) => !!c.rect);
-  if (!columns.length) return undefined;
-  const centerX = collisionRect.left + collisionRect.width / 2;
-  let current = 0;
-  let best = Infinity;
-  columns.forEach((c, i) => {
-    const r = c.rect as NonNullable<typeof c.rect>;
-    const d = Math.abs(r.left + r.width / 2 - centerX);
-    if (d < best) {
-      best = d;
-      current = i;
-    }
-  });
-  const next = Math.max(0, Math.min(columns.length - 1, current + (event.code === 'ArrowRight' ? 1 : -1)));
-  const target = columns[next].rect as NonNullable<(typeof columns)[number]['rect']>;
-  return {
-    x: currentCoordinates.x + (target.left + target.width / 2 - centerX),
-    y: currentCoordinates.y + (target.top + 12 - collisionRect.top),
+function makeColumnGetter(columnIds: ID[]): KeyboardCoordinateGetter {
+  return (event, { context: { droppableRects, collisionRect }, currentCoordinates }) => {
+    if (!collisionRect) return undefined;
+    if (event.code !== 'ArrowRight' && event.code !== 'ArrowLeft') return undefined;
+    event.preventDefault();
+    const columns = columnIds.map((id) => ({ id, rect: droppableRects.get(id) })).filter((c) => !!c.rect);
+    if (!columns.length) return undefined;
+    const centerX = collisionRect.left + collisionRect.width / 2;
+    let current = 0;
+    let best = Infinity;
+    columns.forEach((c, i) => {
+      const r = c.rect as NonNullable<typeof c.rect>;
+      const d = Math.abs(r.left + r.width / 2 - centerX);
+      if (d < best) {
+        best = d;
+        current = i;
+      }
+    });
+    const next = Math.max(0, Math.min(columns.length - 1, current + (event.code === 'ArrowRight' ? 1 : -1)));
+    const target = columns[next].rect as NonNullable<(typeof columns)[number]['rect']>;
+    return {
+      x: currentCoordinates.x + (target.left + target.width / 2 - centerX),
+      y: currentCoordinates.y + (target.top + 12 - collisionRect.top),
+    };
   };
-};
+}
 
 const collision: CollisionDetection = (args) => {
   const pointer = pointerWithin(args);
@@ -68,12 +69,13 @@ const collision: CollisionDetection = (args) => {
 
 export function Board(props: IssueViewProps) {
   const narrow = useMediaQuery('(max-width: 719px)');
-  const byStatus = useMemo(() => {
-    const map = new Map<Status, Issue[]>(STATUSES.map((s) => [s, []]));
+  const columns = props.project.columns;
+  const byColumn = useMemo(() => {
+    const map = new Map<ID, Issue[]>(columns.map((c) => [c.id, []]));
     for (const i of props.issues) map.get(i.status)?.push(i);
-    for (const s of STATUSES) map.set(s, orderForBoard(map.get(s) ?? []));
+    for (const c of columns) map.set(c.id, orderForBoard(map.get(c.id) ?? []));
     return map;
-  }, [props.issues]);
+  }, [props.issues, columns]);
 
   if (props.issues.length === 0 && props.filtered) {
     return (
@@ -91,65 +93,73 @@ export function Board(props: IssueViewProps) {
     );
   }
 
-  return narrow ? <NarrowBoard {...props} byStatus={byStatus} /> : <WideBoard {...props} byStatus={byStatus} />;
+  return narrow ? <NarrowBoard {...props} byColumn={byColumn} /> : <WideBoard {...props} byColumn={byColumn} />;
 }
 
-type WithGroups = IssueViewProps & { byStatus: Map<Status, Issue[]> };
+type WithGroups = IssueViewProps & { byColumn: Map<ID, Issue[]> };
 
 /* ---------- Phones: one column at a time ---------- */
 
-function NarrowBoard({ byStatus, project, ctx, readOnly, onOpen, onDelete, onCreate }: WithGroups) {
-  const [active, setActive] = useState<Status>('todo');
+function NarrowBoard({ byColumn, project, ctx, readOnly, onOpen, onDelete, onCreate, onEditColumns }: WithGroups) {
+  const columns = project.columns;
+  const [chosen, setChosen] = useState<ID | null>(null);
   const tabRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+  const activeId = columns.some((c) => c.id === chosen) ? (chosen as ID) : (columns.find((c) => c.kind === 'todo') ?? columns[0]).id;
+  const active = columns.find((c) => c.id === activeId) as Column;
 
   function onKeyDown(e: KeyboardEvent<HTMLDivElement>) {
-    const i = STATUSES.indexOf(active);
+    const i = columns.findIndex((c) => c.id === activeId);
     let n = i;
-    if (e.key === 'ArrowRight') n = Math.min(STATUSES.length - 1, i + 1);
+    if (e.key === 'ArrowRight') n = Math.min(columns.length - 1, i + 1);
     else if (e.key === 'ArrowLeft') n = Math.max(0, i - 1);
     else if (e.key === 'Home') n = 0;
-    else if (e.key === 'End') n = STATUSES.length - 1;
+    else if (e.key === 'End') n = columns.length - 1;
     else return;
     e.preventDefault();
-    setActive(STATUSES[n]);
-    tabRefs.current[STATUSES[n]]?.focus();
+    setChosen(columns[n].id);
+    tabRefs.current[columns[n].id]?.focus();
   }
 
-  const issues = byStatus.get(active) ?? [];
+  const issues = byColumn.get(activeId) ?? [];
   return (
     <div className="board-narrow">
-      <div className="status-tabs" role="tablist" aria-label="Status columns" onKeyDown={onKeyDown}>
-        {STATUSES.map((s) => (
+      <div className="status-tabs" role="tablist" aria-label="Columns" onKeyDown={onKeyDown}>
+        {columns.map((c) => (
           <button
-            key={s}
+            key={c.id}
             ref={(el) => {
-              tabRefs.current[s] = el;
+              tabRefs.current[c.id] = el;
             }}
             type="button"
             role="tab"
-            id={`tab-${s}`}
-            aria-selected={active === s}
+            id={`tab-${c.id}`}
+            aria-selected={activeId === c.id}
             aria-controls="status-panel"
-            tabIndex={active === s ? 0 : -1}
-            className={`status-tab status-${s}`}
-            onClick={() => setActive(s)}
+            tabIndex={activeId === c.id ? 0 : -1}
+            className={`status-tab status-${c.kind}`}
+            onClick={() => setChosen(c.id)}
           >
-            <StatusIcon status={s} size={14} />
-            <span>{STATUS_META[s].label}</span>
-            <span className="count">{byStatus.get(s)?.length ?? 0}</span>
+            <StatusIcon kind={c.kind} size={14} />
+            <span>{c.name}</span>
+            <span className="count">{byColumn.get(c.id)?.length ?? 0}</span>
           </button>
         ))}
       </div>
-      <div id="status-panel" role="tabpanel" aria-labelledby={`tab-${active}`} className="board-narrow-panel">
+      <div id="status-panel" role="tabpanel" aria-labelledby={`tab-${activeId}`} className="board-narrow-panel">
         {issues.length === 0 ? (
-          <p className="column-empty">No issues in {STATUS_META[active].label}.</p>
+          <p className="column-empty">No issues in {active.name}.</p>
         ) : (
           <Cards issues={issues} {...{ project, ctx, readOnly, onOpen, onDelete }} />
         )}
         {!readOnly && (
-          <button type="button" className="btn btn-block" onClick={() => onCreate(active)}>
-            <Icon name="plus" size={16} /> Add issue to {STATUS_META[active].label}
-          </button>
+          <>
+            <button type="button" className="btn btn-block" onClick={() => onCreate(activeId)}>
+              <Icon name="plus" size={16} /> Add issue to {active.name}
+            </button>
+            <button type="button" className="btn btn-block btn-quiet" onClick={onEditColumns}>
+              <Icon name="columns" size={16} /> Add or edit columns
+            </button>
+          </>
         )}
       </div>
     </div>
@@ -174,25 +184,28 @@ function Cards({ issues, project, ctx, readOnly, onOpen, onDelete }: Pick<IssueV
 
 /* ---------- Tablet and desktop: columns with drag and drop ---------- */
 
-function WideBoard({ byStatus, project, ctx, readOnly, onOpen, onDelete, onCreate, issues }: WithGroups) {
+function WideBoard({ byColumn, project, ctx, readOnly, onOpen, onDelete, onCreate, onEditColumns, issues }: WithGroups) {
   const { actions } = useStore();
+  const columns = project.columns;
   const [activeId, setActiveId] = useState<string | null>(null);
   // After a move the card remounts in its new column; this puts keyboard focus back on it.
-  const [refocus, setRefocus] = useState<{ id: string; status: Status } | null>(null);
+  const [refocus, setRefocus] = useState<{ id: string; status: ID } | null>(null);
   const byId = useMemo(() => new Map(issues.map((i) => [i.id, i])), [issues]);
   const activeIssue = activeId ? byId.get(activeId) : undefined;
+  const columnIds = useMemo(() => columns.map((c) => c.id), [columns]);
+  const getter = useMemo(() => makeColumnGetter(columnIds), [columnIds]);
 
   const sensors = useSensors(
     useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
     useSensor(TouchSensor, { activationConstraint: { delay: 220, tolerance: 8 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: columnKeyboardGetter }),
+    useSensor(KeyboardSensor, { coordinateGetter: getter }),
   );
 
   const label = (id: string | number | undefined) => {
     const i = id ? byId.get(String(id)) : undefined;
     return i ? `${issueRef(project, i)} ${i.title}` : 'Issue';
   };
-  const columnName = (id: string | number | undefined) => STATUS_META[id as Status]?.label ?? 'a column';
+  const columnName = (id: string | number | undefined) => columns.find((c) => c.id === id)?.name ?? 'a column';
 
   const announcements: Announcements = {
     onDragStart: ({ active }) => `Picked up ${label(active.id)}. It is in ${columnName(byId.get(String(active.id))?.status)}. Use left and right arrow keys to choose a column.`,
@@ -204,8 +217,8 @@ function WideBoard({ byStatus, project, ctx, readOnly, onOpen, onDelete, onCreat
   function onDragEnd(e: DragEndEvent) {
     setActiveId(null);
     const issue = byId.get(String(e.active.id));
-    const target = e.over?.id as Status | undefined;
-    if (issue && target && STATUSES.includes(target) && issue.status !== target) {
+    const target = e.over ? String(e.over.id) : undefined;
+    if (issue && target && columnIds.includes(target) && issue.status !== target) {
       setRefocus({ id: issue.id, status: target });
       void actions.moveIssue(issue.id, target).then((ok) => {
         if (!ok) setRefocus(null);
@@ -221,17 +234,25 @@ function WideBoard({ byStatus, project, ctx, readOnly, onOpen, onDelete, onCreat
         announcements,
         screenReaderInstructions: {
           draggable:
-            'To pick up this issue, press space or enter. Use the left and right arrow keys to move it between columns, then press space or enter to drop it. Press escape to cancel. You can also use the actions menu on the card to change status.',
+            'To pick up this issue, press space or enter. Use the left and right arrow keys to move it between columns, then press space or enter to drop it. Press escape to cancel. You can also use the actions menu on the card to change its column.',
         },
       }}
       onDragStart={(e: DragStartEvent) => setActiveId(String(e.active.id))}
       onDragEnd={onDragEnd}
       onDragCancel={() => setActiveId(null)}
     >
-      <div className="board-columns">
-        {STATUSES.map((s) => (
-          <Column key={s} status={s} issues={byStatus.get(s) ?? []} {...{ project, ctx, readOnly, onOpen, onDelete, onCreate }} draggingId={activeId} refocus={refocus} onRefocused={() => setRefocus(null)} />
+      <div className="board-columns" style={{ ['--cols' as string]: columns.length }}>
+        {columns.map((c) => (
+          <ColumnView key={c.id} column={c} issues={byColumn.get(c.id) ?? []} {...{ project, ctx, readOnly, onOpen, onDelete, onCreate }} draggingId={activeId} refocus={refocus} onRefocused={() => setRefocus(null)} />
         ))}
+        {!readOnly && (
+          <div className="column column-add">
+            <button type="button" className="add-column-btn" onClick={onEditColumns}>
+              <Icon name="plus" size={18} />
+              <span>Add column</span>
+            </button>
+          </div>
+        )}
       </div>
       <DragOverlay dropAnimation={{ duration: 160, easing: 'ease-out' }}>
         {activeIssue ? <IssueCard issue={activeIssue} {...{ project, ctx }} readOnly overlay onOpen={() => undefined} onDelete={() => undefined} /> : null}
@@ -241,35 +262,35 @@ function WideBoard({ byStatus, project, ctx, readOnly, onOpen, onDelete, onCreat
 }
 
 interface ColumnProps extends Pick<IssueViewProps, 'project' | 'ctx' | 'readOnly' | 'onOpen' | 'onDelete' | 'onCreate'> {
-  status: Status;
+  column: Column;
   issues: Issue[];
   draggingId: string | null;
-  refocus: { id: string; status: Status } | null;
+  refocus: { id: string; status: ID } | null;
   onRefocused: () => void;
 }
 
-function Column({ status, issues, project, ctx, readOnly, onOpen, onDelete, onCreate, draggingId, refocus, onRefocused }: ColumnProps) {
-  const { setNodeRef, isOver } = useDroppable({ id: status, disabled: readOnly });
+function ColumnView({ column, issues, project, ctx, readOnly, onOpen, onDelete, onCreate, draggingId, refocus, onRefocused }: ColumnProps) {
+  const { setNodeRef, isOver } = useDroppable({ id: column.id, disabled: readOnly });
   const [limit, setLimit] = useState(PAGE);
-  const headingId = `col-${status}`;
+  const headingId = `col-${column.id}`;
   return (
     <section
       ref={setNodeRef}
-      className={`column status-${status}${isOver && draggingId ? ' is-over' : ''}`}
+      className={`column status-${column.kind}${isOver && draggingId ? ' is-over' : ''}`}
       style={{ ['--n' as string]: issues.length }}
       aria-labelledby={headingId}
     >
       <span className="column-weight" aria-hidden="true" />
       <header className="column-header">
-        <h2 id={headingId} className={`column-title status-${status}`}>
-          <StatusIcon status={status} />
-          {STATUS_META[status].label}
+        <h2 id={headingId} className={`column-title status-${column.kind}`}>
+          <StatusIcon kind={column.kind} />
+          <span className="column-name">{column.name}</span>
         </h2>
         <span className="count" aria-label={`${issues.length} issues`}>
           {issues.length}
         </span>
         {!readOnly && (
-          <button type="button" className="icon-btn icon-btn-sm" onClick={() => onCreate(status)} aria-label={`Add issue to ${STATUS_META[status].label}`}>
+          <button type="button" className="icon-btn icon-btn-sm" onClick={() => onCreate(column.id)} aria-label={`Add issue to ${column.name}`}>
             <Icon name="plus" size={16} />
           </button>
         )}
@@ -289,7 +310,7 @@ function Column({ status, issues, project, ctx, readOnly, onOpen, onDelete, onCr
   );
 }
 
-function DraggableCard({ refocus, onRefocused, ...props }: Pick<IssueViewProps, 'project' | 'ctx' | 'readOnly' | 'onOpen' | 'onDelete'> & { issue: Issue; refocus: { id: string; status: Status } | null; onRefocused: () => void }) {
+function DraggableCard({ refocus, onRefocused, ...props }: Pick<IssueViewProps, 'project' | 'ctx' | 'readOnly' | 'onOpen' | 'onDelete'> & { issue: Issue; refocus: { id: string; status: ID } | null; onRefocused: () => void }) {
   const handle = useRef<HTMLButtonElement | null>(null);
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, isDragging } = useDraggable({
     id: props.issue.id,
